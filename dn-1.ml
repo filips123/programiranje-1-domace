@@ -18,8 +18,9 @@
  za baze, ki so večje od $10$, uporabimo števke od $0$ do $b - 1$.
 [*----------------------------------------------------------------------------*)
 
-let rec stevke b n =
-  if n < b then [n] else (stevke b (n / b) @ [n mod b])
+let stevke b n =
+  let rec aux b n = if n < b then [n] else (n mod b) :: (aux b (n / b)) in
+  List.rev (aux b n)
 
 let primer_1_1 = stevke 10 12345
 (* val primer_1_1 : int list = [1; 2; 3; 4; 5] *)
@@ -41,10 +42,13 @@ let primer_1_3 = stevke 16 (3 * 16 * 16 * 16 + 14 * 16 * 16 + 15 * 16 + 9)
  seznam.
 [*----------------------------------------------------------------------------*)
 
-let rec take n =
-  function
-  | x :: xs -> if n <= 1 then [x] else x :: take (n - 1) xs
-  | [] -> []
+let take n list =
+  let rec aux acc n =
+    function
+    | x :: xs when n > 0 -> aux (x :: acc) (n - 1) xs
+    | _ -> List.rev acc
+  in
+  aux [] n list
 
 let primer_1_4 = take 3 [1; 2; 3; 4; 5]
 (* val primer_1_4 : int list = [1; 2; 3] *)
@@ -83,7 +87,7 @@ let primer_1_7 = drop_while (fun x -> x < 5) [9; 8; 7; 6; 5; 4; 3; 2; 1; 0]
  še njihove indekse.
 [*----------------------------------------------------------------------------*)
 
-let rec filter_mapi func list =
+let filter_mapi func list =
   let rec aux acc ix =
     function
     | [] -> List.rev acc
@@ -234,7 +238,7 @@ type polinom = int list
  koeficientov odstrani odvečne ničle.
 [*----------------------------------------------------------------------------*)
 
-let rec pocisti p =
+let pocisti p =
   let rec aux =
     function
     | 0 :: xs -> aux xs
@@ -258,11 +262,14 @@ let ( +++ ) p1 p2 =
   let rec aux acc =
     function
     | ([], []) -> acc
-    | (x :: xs, []) -> aux (acc @ [x]) (xs, [])
-    | ([], y :: ys) -> aux (acc @ [y]) ([], ys)
-    | (x :: xs, y :: ys) -> aux (acc @ [x + y]) (xs, ys)
+    | (x :: xs, []) -> aux (x :: acc) (xs, [])
+    | ([], y :: ys) -> aux (y :: acc) ([], ys)
+    | (x :: xs, y :: ys) -> aux ((x + y) :: acc) (xs, ys)
    in
-   pocisti (aux [] (p1, p2))
+
+  aux [] (p1, p2)
+  |> List.rev
+  |> pocisti
 
 let primer_3_2 = [1; -2; 3] +++ [1; 2]
 (* val primer_3_2 : int list = [2; 0; 3] *)
@@ -280,15 +287,15 @@ let primer_3_3 = [1; -2; 3] +++ [1; 2; -3]
 [*----------------------------------------------------------------------------*)
 
 let ( *** ) p1 p2 =
-  let rec aux p1 p2 =
+  let rec aux acc p1 p2 =
     match p1 with
-    | [] -> []
+    | [] -> acc
     | b :: bs ->
       let current = List.map (fun c -> b * c) p2 in
-      let remaining = aux bs p2 in
-      current +++ ([0] @ remaining)
+      let remaining = 0 :: acc in
+      aux (current +++ remaining) bs p2
   in
-  pocisti (aux p1 p2)
+  pocisti (aux [] p1 p2)
 
 let primer_3_4 = [1; 1] *** [1; 1] *** [1; 1]
 (* val primer_3_4 : int list = [1; 3; 3; 1] *)
@@ -344,25 +351,13 @@ let primer_3_7 = odvod [1; -2; 3]
 [*----------------------------------------------------------------------------*)
 
 let superscript n =
-  let rec digit =
-    function
-    | 0 -> "⁰"
-    | 1 -> "¹"
-    | 2 -> "²"
-    | 3 -> "³"
-    | 4 -> "⁴"
-    | 5 -> "⁵"
-    | 6 -> "⁶"
-    | 7 -> "⁷"
-    | 8 -> "⁸"
-    | 9 -> "⁹"
-    | _ -> ""
+  let digits = ["⁰"; "¹"; "²"; "³"; "⁴"; "⁵"; "⁶"; "⁷"; "⁸"; "⁹"]
   in
 
   let rec aux acc =
     function
     | [] -> acc
-    | x :: xs -> aux (acc ^ digit x) xs
+    | x :: xs -> aux (acc ^ List.nth digits x) xs
   in
 
   match n with
