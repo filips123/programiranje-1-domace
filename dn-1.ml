@@ -20,7 +20,8 @@
 
 let stevke b n =
   let rec aux b n = if n < b then [n] else (n mod b) :: (aux b (n / b)) in
-  List.rev (aux b n)
+  if b = 1 then List.init n (fun _ -> 0)
+  else List.rev (aux b n)
 
 let primer_1_1 = stevke 10 12345
 (* val primer_1_1 : int list = [1; 2; 3; 4; 5] *)
@@ -265,7 +266,7 @@ let ( +++ ) p1 p2 =
     | (x :: xs, []) -> aux (x :: acc) (xs, [])
     | ([], y :: ys) -> aux (y :: acc) ([], ys)
     | (x :: xs, y :: ys) -> aux ((x + y) :: acc) (xs, ys)
-   in
+  in
 
   aux [] (p1, p2)
   |> List.rev
@@ -407,7 +408,9 @@ let izpis p =
     )
   in
 
-  aux "" (List.length p - 1) (List.rev p)
+  match aux "" (List.length p - 1) (List.rev p) with
+  | "" -> "0"
+  | str -> str
 
 let primer_3_8 = izpis [1; 2; 1]
 (* val primer_3_8 : string = "x² + 2 x + 1" *)
@@ -675,8 +678,11 @@ let primer_5_8 = List.nth slovar 321
 
 let dodaj_zamenjavo current (source, target) =
   match indeks source with
-  (* Zamenjava ni velika črka *)
-  | _ when source < 'A' || source > 'Z' || target < 'A' || target > 'Z' -> None
+  (* Zamenjava ni velika črka, ampak je identiteta *)
+  | _ when (source < 'A' || source > 'Z' || target < 'A' || target > 'Z') && source = target -> Some current
+
+  (* Zamenjava ni velika črka, ampak ni identiteta *)
+  | _ when (source < 'A' || source > 'Z' || target < 'A' || target > 'Z') && source <> target -> None
 
   (* Zamenjava ni ustrezna za trenuten ključ *)
   | index when index < 0 || index >= String.length current -> None
@@ -807,3 +813,8 @@ let primer_5_16 = sifriraj quick_brown_fox "THIS IS A VERY HARD PROBLEM"
 
 let primer_5_17 = odsifriraj_enega "VKBO BO T AUSD KTSQ MSJHNUF"
 (* val primer_5_17 : string option = Some "THIS IS A VERY HARD PROBLEM" *)
+
+let sifriraj_odsifriraj key str =
+  str
+  |> sifriraj key
+  |> odsifriraj
