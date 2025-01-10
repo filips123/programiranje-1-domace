@@ -50,17 +50,43 @@ module Tape : TAPE = struct
   (* Right: [Head, +Inf) *)
   type t = char list * char list
 
-  let make chars =
-    ([], List.init (String.length chars) (String.get chars))
+  let rtrim string =
+    let len = String.length string in
+    let rec last idx =
+      if idx < 0 || string.[idx] <> ' ' then idx
+      else last (idx - 1)
+    in
+    let idx = last (len - 1) in
+    String.sub string 0 (idx + 1)
+
+  let ltrim string =
+    let len = String.length string in
+    let rec first idx =
+      if idx >= len || string.[idx] <> ' ' then idx
+      else first (idx + 1)
+    in
+    let idx = first 0 in
+    String.sub string idx (len - idx)
+
+  let empty list =
+    list == [] || list == [' ']
+
+  let make string =
+    let string' = rtrim string in
+    ([], List.init (String.length string') (String.get string'))
 
   let move direction (left, right) =
     match direction with
       | Left -> (match left with
+        | [] when empty right -> ([], [])
         | [] -> ([], ' ' :: right)
+        | ' ' :: t when empty right -> (t, [])
         | h :: t -> (t, h :: right)
       )
       | Right -> (match right with
+        | [] when empty left -> ([], [])
         | [] -> (' ' :: left, [])
+        | ' ' :: t when empty left -> ([], t)
         | h :: t -> (h :: left, t)
       )
 
@@ -231,8 +257,7 @@ let slow_run machine tape =
     print_endline "";
     match Machine.step machine state tape with
       | None -> ()
-      | Some (state', tape') ->
-        run state' tape'
+      | Some (state', tape') -> run state' tape'
   in
   run (Machine.initial machine) (Tape.make tape)
 
@@ -273,8 +298,7 @@ let speed_run machine tape =
   let rec run state tape =
     match Machine.step machine state tape with
       | None -> tape
-      | Some (state', tape') ->
-        run state' tape'
+      | Some (state', tape') -> run state' tape'
   in
   let final = run (Machine.initial machine) (Tape.make tape) in
   Tape.print final
@@ -308,6 +332,40 @@ let primer_speed_run =
  Implementacijo in tipe ugotovite sami.
 [*----------------------------------------------------------------------------*)
 
+let for_state (state : state) (transitions : (state -> Machine.t -> Machine.t) list list) (machine: Machine.t)
+  : Machine.t =
+  transitions
+  |> List.flatten
+  |> List.map (fun transition -> transition state)
+  |> List.fold_left (fun machine' transition -> transition machine') machine
+
+let for_characters (heads : string) (transition : char -> state -> Machine.t -> Machine.t)
+  : (state -> Machine.t -> Machine.t) list =
+  heads
+  |> String.to_seq
+  |> List.of_seq
+  |> List.map transition
+
+let for_character (head : char) (transition : char -> state -> Machine.t -> Machine.t)
+  : (state -> Machine.t -> Machine.t) list =
+  [transition head]
+
+let move (direction : direction)
+  : (char -> state -> Machine.t -> Machine.t) =
+  fun head state machine -> Machine.add_transition state head state head direction machine
+
+let switch_and_move (state' : state) (direction : direction)
+  : (char -> state -> Machine.t -> Machine.t) =
+  fun head state machine -> Machine.add_transition state head state' head direction machine
+
+let write_and_move (head' : char) (direction : direction)
+   : (char -> state -> Machine.t -> Machine.t) =
+  fun head state machine -> Machine.add_transition state head state head' direction machine
+
+let write_switch_and_move (head' : char) (state' : state) (direction : direction)
+  : (char -> state -> Machine.t -> Machine.t) =
+  fun head state machine -> Machine.add_transition state head state' head' direction machine
+
 let binary_increment' =
   Machine.make "right" ["carry"; "done"]
   |> for_state "right" [
@@ -315,10 +373,13 @@ let binary_increment' =
     for_character ' ' @@ switch_and_move "carry" Left
   ]
   |> for_state "carry" [
-    for_character '1' @@ switch_and_move "carry" Left;
+    for_character '1' @@ write_switch_and_move '0' "carry" Left;
     for_characters "0 " @@ write_switch_and_move '1' "done" Left
   ]
 (* val binary_increment' : Machine.t = <abstr> *)
+
+let primer_krajsi_zapis =
+  speed_run binary_increment' "1011"
 
 (*----------------------------------------------------------------------------*
  ## Primeri Turingovih strojev
