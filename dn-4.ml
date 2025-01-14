@@ -402,7 +402,64 @@ let primer_krajsi_zapis =
  Sestavite Turingov stroj, ki začetni niz obrne na glavo.
 [*----------------------------------------------------------------------------*)
 
-let reverse = ()
+(*
+- init: Poišče in označi konec števila.
+- back: Gre nazaj do začetka števila in ga označi.
+- search: Poišče naslednji znak.
+- carry0: Nosi 0 nazaj do novega niza.
+- carry1: Nosi 1 nazaj do novega niza.
+- write0: Na prvo prosto mesto zapiše 0.
+- write1: Na prvo prosto mesto zapiše 1.
+- continue: Nadaljuje do konca novega niza.
+- uninit: Pobriše označbo konca števila.
+- return: Vrne se na začetek novega niza.
+- done: Ustavi se.
+*)
+
+let reverse =
+  Machine.make "init" ["back"; "search"; "carry0"; "carry1"; "write0"; "write1"; "continue"; "uninit"; "return"]
+  |> for_state "init" [
+    for_characters "01" @@ move Right;
+    for_character ' ' @@ write_switch_and_move 'X' "back" Left
+  ]
+  |> for_state "back" [
+    for_characters "01" @@ move Left;
+    for_character ' ' @@ write_switch_and_move 'Y' "search" Right
+  ]
+  |> for_state "search" [
+    for_character ' ' @@ move Right;
+    for_character '0' @@ write_switch_and_move ' ' "carry0" Left;
+    for_character '1' @@ write_switch_and_move ' ' "carry1" Left;
+    for_character 'X' @@ write_switch_and_move ' ' "uninit" Left
+  ]
+  |> for_state "carry0" [
+    for_character ' ' @@ move Left;
+    for_character 'Y' @@ switch_and_move "write0" Left
+  ]
+  |> for_state "carry1" [
+    for_character ' ' @@ move Left;
+    for_character 'Y' @@ switch_and_move "write1" Left
+  ]
+  |> for_state "write0" [
+    for_characters "01" @@ move Left;
+    for_character ' ' @@ write_switch_and_move '0' "continue" Right
+  ]
+  |> for_state "write1" [
+    for_characters "01" @@ move Left;
+    for_character ' ' @@ write_switch_and_move '1' "continue" Right
+  ]
+  |> for_state "continue" [
+    for_characters "01" @@ move Right;
+    for_character 'Y' @@ switch_and_move "search" Right
+  ]
+  |> for_state "uninit" [
+    for_character ' ' @@ move Left;
+    for_character 'Y' @@ write_switch_and_move ' ' "return" Left
+  ]
+  |> for_state "return" [
+    for_characters "01" @@ move Left;
+    for_character ' ' @@ switch_and_move "done" Right
+  ]
 
 let primer_reverse = speed_run reverse "0000111001"
 (* 
