@@ -403,17 +403,24 @@ let primer_krajsi_zapis =
 [*----------------------------------------------------------------------------*)
 
 (*
-- init: Poišče in označi konec števila.
-- back: Gre nazaj do začetka števila in ga označi.
+
+Oznake:
+- X: Konec prvotnega niza.
+- Y: Začetek prvotnega niza.
+
+Stanja:
+- init: Poišče in označi konec niza.
+- back: Gre nazaj do začetka niza in ga označi.
 - search: Poišče naslednji znak.
 - carry0: Nosi 0 nazaj do novega niza.
 - carry1: Nosi 1 nazaj do novega niza.
 - write0: Na prvo prosto mesto zapiše 0.
 - write1: Na prvo prosto mesto zapiše 1.
 - continue: Nadaljuje do konca novega niza.
-- uninit: Pobriše označbo konca števila.
+- uninit: Pobriše označbo konca niza.
 - return: Vrne se na začetek novega niza.
 - done: Ustavi se.
+
 *)
 
 let reverse =
@@ -476,7 +483,52 @@ let primer_reverse = speed_run reverse "0000111001"
  Sestavite Turingov stroj, ki podvoji začetni niz.
 [*----------------------------------------------------------------------------*)
 
-let duplicate = ()
+(*
+
+Oznake:
+- X: Konec prvotnega niza.
+
+Stanja:
+- init: Poišče in označi konec niza.
+- search: Poišče naslednji znak.
+- read: Prebere trenutni znak.
+- write-first-zero: Na konec novega niza napiše prvo ničlo.
+- write-first-one: Na konec novega niza napiše prvo enko.
+- write-second-zero: Na konec novega niza napiše drugo ničlo.
+- write-second-one: Na konec novega niza napiše drugo enko.
+- done: Ustavi se.
+
+*)
+
+let duplicate =
+  Machine.make "init" ["search"; "read"; "write-first-zero"; "write-first-one"; "write-second-zero"; "write-second-one"; "done"]
+  |> for_state "init" [
+    for_characters "01" @@ move Right;
+    for_character ' ' @@ write_switch_and_move 'X' "search" Left
+  ]
+  |> for_state "search" [
+    for_characters "01X" @@ move Left;
+    for_character ' ' @@ switch_and_move "read" Right
+  ]
+  |> for_state "read" [
+    for_character '0' @@ write_switch_and_move ' ' "write-first-zero" Right;
+    for_character '1' @@ write_switch_and_move ' ' "write-first-one" Right;
+    for_character 'X' @@ write_switch_and_move ' ' "done" Right;
+  ]
+  |> for_state "write-first-zero" [
+    for_characters "01X" @@ move Right;
+    for_character ' ' @@ write_switch_and_move '0' "write-second-zero" Right
+  ]
+  |> for_state "write-first-one" [
+    for_characters "01X" @@ move Right;
+    for_character ' ' @@ write_switch_and_move '1' "write-second-one" Right
+  ]
+  |> for_state "write-second-zero" [
+    for_character ' ' @@ write_switch_and_move '0' "search" Left
+  ]
+  |> for_state "write-second-one" [
+    for_character ' ' @@ write_switch_and_move '1' "search" Left
+  ]
 
 let primer_duplicate = speed_run duplicate "010011"
 (* 
@@ -494,7 +546,45 @@ let primer_duplicate = speed_run duplicate "010011"
  v dvojiškem zapisu, na koncu pa naj bo na traku zapisanih natanko $n$ enic.
 [*----------------------------------------------------------------------------*)
 
-let to_unary = ()
+(*
+
+Stanja:
+- init: Pomakne se na konec dvojiškega zapisa.
+- substract: Od dvojiškega zapisa odšteje 1.
+- transfer: Prenese enko do začetka eniškega zapisa.
+- write: Zapiše enko na konec eniškega zapisa.
+- return: Vrne se do konca dvojiškega zapisa.
+- clear: Pobriše ostanke dvojiškega zapisa.
+
+*)
+
+let to_unary =
+  Machine.make "init" ["substract"; "transfer"; "write"; "return"; "clear"]
+  |> for_state "init" [
+    for_characters "01" @@ move Right;
+    for_character ' ' @@ switch_and_move "substract" Left
+  ]
+  |> for_state "substract" [
+    for_character '1' @@ write_switch_and_move '0' "transfer" Right;
+    for_character '0' @@ write_switch_and_move '1' "substract" Left;
+    for_character ' ' @@ switch_and_move "clear" Right
+  ]
+  |> for_state "transfer" [
+    for_characters "01" @@ move Right;
+    for_character ' ' @@ switch_and_move "write" Right
+  ]
+  |> for_state "write" [
+    for_character '1' @@ move Right;
+    for_character ' ' @@ write_switch_and_move '1' "return" Left
+  ]
+  |> for_state "return" [
+    for_character '1' @@ move Left;
+    for_character ' ' @@ switch_and_move "substract" Left
+  ]
+  |> for_state "clear" [
+    for_character '1' @@ write_and_move ' ' Right;
+    for_character ' ' @@ switch_and_move "done" Right
+  ]
 
 let primer_to_unary = speed_run to_unary "1010"
 (* 
