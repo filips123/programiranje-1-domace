@@ -178,39 +178,34 @@ end
 
 module Machine : MACHINE = struct
 
-  module StateHeadMap = Map.Make(
-    struct
-      type t = state * char
-      let compare (s1, c1) (s2, c2) =
-        let states = String.compare s1 s2 in
-        let heads = Char.compare c1 c2 in
-        if states <> 0 then states else heads
-    end
-  )
-
   type t = {
     initial : state;
     states : state list;
-    transitions : (state * char * direction) StateHeadMap.t
+    transitions : (state * char * direction) option array array
   }
 
   let make initial states = {
     initial = initial;
     states = initial :: states;
-    transitions = StateHeadMap.empty;
+    transitions = Array.make_matrix (List.length @@ initial :: states) 128 None
   }
 
   let initial machine = machine.initial
 
   let add_transition state head state' head' direction machine = {
     machine with
-    transitions = StateHeadMap.add (state, head) (state', head', direction) machine.transitions
+    transitions =
+      let transitions' = Array.map (fun row -> Array.copy row) machine.transitions in
+      let sidx = List.find_index (fun s -> s = state) machine.states |> Option.get in
+      let hidx = Char.code head in
+      transitions'.(sidx).(hidx) <- Some (state', head', direction);
+      transitions'
   }
 
   let step machine state tape =
-    let head = Tape.read tape in
-    let transition = StateHeadMap.find_opt (state, head) machine.transitions in
-    match transition with
+    let sidx = List.find_index (fun s -> s = state) machine.states |> Option.get in
+    let hidx = Char.code @@ Tape.read tape in
+    match machine.transitions.(sidx).(hidx) with
       | None -> None
       | Some (state', head', direction) ->
         let tape' = tape |> Tape.write head' |> Tape.move direction in
