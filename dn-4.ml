@@ -178,15 +178,17 @@ end
 
 module Machine : MACHINE = struct
 
+  module StringMap = Map.Make(String)
+
   type t = {
     initial : state;
-    states : state list;
+    states : int StringMap.t;
     transitions : (state * char * direction) option array array
   }
 
   let make initial states = {
     initial = initial;
-    states = initial :: states;
+    states = List.mapi (fun idx state -> (state, idx)) (initial :: states) |> List.to_seq |> StringMap.of_seq;
     transitions = Array.make_matrix (List.length @@ initial :: states) 128 None
   }
 
@@ -196,14 +198,14 @@ module Machine : MACHINE = struct
     machine with
     transitions =
       let transitions' = Array.map (fun row -> Array.copy row) machine.transitions in
-      let sidx = List.find_index (fun s -> s = state) machine.states |> Option.get in
+      let sidx = StringMap.find state machine.states in
       let hidx = Char.code head in
       transitions'.(sidx).(hidx) <- Some (state', head', direction);
       transitions'
   }
 
   let step machine state tape =
-    let sidx = List.find_index (fun s -> s = state) machine.states |> Option.get in
+    let sidx = StringMap.find state machine.states in
     let hidx = Char.code @@ Tape.read tape in
     match machine.transitions.(sidx).(hidx) with
       | None -> None
