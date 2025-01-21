@@ -367,7 +367,7 @@ let write_switch_and_move (head' : char) (state' : state) (direction : direction
   fun head state machine -> Machine.add_transition state head state' head' direction machine
 
 let binary_increment' =
-  Machine.make "right" ["carry"; "done"]
+  Machine.make "right" [ "carry"; "done" ]
   |> for_state "right" [
     for_characters "01" @@ move Right;
     for_character ' ' @@ switch_and_move "carry" Left
@@ -404,6 +404,9 @@ let primer_krajsi_zapis =
 
 (*
 
+Prvi znak starega niza prestavimo na levo, kot zadnji znak obrnjenega
+niza, ter ga izbrišemo. To ponavljamo za vsak znak.
+
 Oznake:
 - X: Konec prvotnega niza.
 - Y: Začetek prvotnega niza.
@@ -424,7 +427,7 @@ Stanja:
 *)
 
 let reverse =
-  Machine.make "init" ["back"; "search"; "carry0"; "carry1"; "write0"; "write1"; "continue"; "uninit"; "return"]
+  Machine.make "init" [ "back"; "search"; "carry0"; "carry1"; "write0"; "write1"; "continue"; "uninit"; "return"; "done" ]
   |> for_state "init" [
     for_characters "01" @@ move Right;
     for_character ' ' @@ write_switch_and_move 'X' "back" Left
@@ -485,6 +488,9 @@ let primer_reverse = speed_run reverse "0000111001"
 
 (*
 
+Vsak znak zaporedoma prenesemo za trenutno niz in ga podvojimo,
+prvotni znak pa izbrišemo.
+
 Oznake:
 - X: Konec prvotnega niza.
 
@@ -501,7 +507,7 @@ Stanja:
 *)
 
 let duplicate =
-  Machine.make "init" ["search"; "read"; "write-first-zero"; "write-first-one"; "write-second-zero"; "write-second-one"; "done"]
+  Machine.make "init" [ "search"; "read"; "write-first-zero"; "write-first-one"; "write-second-zero"; "write-second-one"; "done" ]
   |> for_state "init" [
     for_characters "01" @@ move Right;
     for_character ' ' @@ write_switch_and_move 'X' "search" Left
@@ -548,25 +554,29 @@ let primer_duplicate = speed_run duplicate "010011"
 
 (*
 
+Od prvotnega dvojiškega zapisa zaporedoma odštevamo 1, hkrati
+pa v novem nizu vsakič dodamo novo enko.
+
 Stanja:
-- init: Pomakne se na konec dvojiškega zapisa.
-- substract: Od dvojiškega zapisa odšteje 1.
+- right: Pomakne se na konec dvojiškega zapisa.
+- subtract: Od dvojiškega zapisa odšteje 1.
 - transfer: Prenese enko do začetka eniškega zapisa.
 - write: Zapiše enko na konec eniškega zapisa.
 - return: Vrne se do konca dvojiškega zapisa.
 - clear: Pobriše ostanke dvojiškega zapisa.
+- done: Ustavi se.
 
 *)
 
 let to_unary =
-  Machine.make "init" ["substract"; "transfer"; "write"; "return"; "clear"]
-  |> for_state "init" [
+  Machine.make "right" [ "subtract"; "transfer"; "write"; "return"; "clear"; "done" ]
+  |> for_state "right" [
     for_characters "01" @@ move Right;
-    for_character ' ' @@ switch_and_move "substract" Left
+    for_character ' ' @@ switch_and_move "subtract" Left
   ]
-  |> for_state "substract" [
+  |> for_state "subtract" [
     for_character '1' @@ write_switch_and_move '0' "transfer" Right;
-    for_character '0' @@ write_switch_and_move '1' "substract" Left;
+    for_character '0' @@ write_switch_and_move '1' "subtract" Left;
     for_character ' ' @@ switch_and_move "clear" Right
   ]
   |> for_state "transfer" [
@@ -579,7 +589,7 @@ let to_unary =
   ]
   |> for_state "return" [
     for_character '1' @@ move Left;
-    for_character ' ' @@ switch_and_move "substract" Left
+    for_character ' ' @@ switch_and_move "subtract" Left
   ]
   |> for_state "clear" [
     for_character '1' @@ write_and_move ' ' Right;
@@ -603,7 +613,58 @@ let primer_to_unary = speed_run to_unary "1010"
  dvojiškem zapisu.
 [*----------------------------------------------------------------------------*)
 
-let to_binary = ()
+(*
+
+Iz eniškega zapisa postopoma brišemo znake, hkrati pa v dvojiškem
+zapisu prištevamo enke.
+
+Stanja:
+- init: Pomakne se do mesta dvojiškega zapisa.
+- start: Začne pisati dvojiški zapis.
+- next: Pomakne se do konca dvojiškega zapisa.
+- remove: Pobriše prvo enko iz eniškega zapisa.
+- transfer: Pomakne se do mesta dvojiškega zapisa.
+- carry: Dvojiškemu zapisu prišteje enko.
+- clear: Počisti ničle za sabo.
+- return: Pomakne se na začetek dvojiškega zapisa.
+- done: Ustavi se.
+
+*)
+
+let to_binary =
+  Machine.make "init" [ "start"; "next"; "remove"; "transfer"; "carry"; "clear"; "return"; "done" ]
+  |> for_state "init" [
+    for_character '1' @@ move Left;
+    for_character ' ' @@ switch_and_move "start" Left
+  ]
+  |> for_state "start" [
+    for_character ' ' @@ write_switch_and_move '0' "next" Right
+  ]
+  |> for_state "next" [
+    for_characters "10" @@ move Right;
+    for_character ' ' @@ switch_and_move "remove" Right
+  ]
+  |> for_state "remove" [
+    for_character '1' @@ write_switch_and_move '0' "transfer" Left;
+    for_character '0' @@ move Right;
+    for_character ' ' @@ switch_and_move "clear" Left
+  ]
+  |> for_state "transfer" [
+    for_character '0' @@ move Left;
+    for_character ' ' @@ switch_and_move "carry" Left
+  ]
+  |> for_state "carry" [
+    for_character '1' @@ write_and_move '0' Left;
+    for_characters "0 " @@ write_switch_and_move '1' "next" Right
+  ]
+  |> for_state "clear" [
+    for_character '0' @@ write_and_move ' ' Left;
+    for_character ' ' @@ switch_and_move "return" Left
+  ]
+  |> for_state "return" [
+    for_characters "10" @@ move Left;
+    for_character ' ' @@ switch_and_move "done" Right
+  ]
 
 let primer_to_binary = speed_run to_binary (String.make 42 '1')
 (* 
