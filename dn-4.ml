@@ -174,6 +174,7 @@ module type MACHINE = sig
   val initial : t -> state
   val add_transition : state -> char -> state -> char -> direction -> t -> t
   val step : t -> state -> Tape.t -> (state * Tape.t) option
+  val step' : t -> int -> Tape.t -> (int * Tape.t) option
 end
 
 module Machine : MACHINE = struct
@@ -182,13 +183,15 @@ module Machine : MACHINE = struct
 
   type t = {
     initial : state;
-    states : int StringMap.t;
-    transitions : (state * char * direction) option array array
+    states : state array;
+    indexes : int StringMap.t;
+    transitions : (int * char * direction) option array array
   }
 
   let make initial states = {
     initial = initial;
-    states = List.mapi (fun idx state -> (state, idx)) (initial :: states) |> List.to_seq |> StringMap.of_seq;
+    states = Array.of_list @@ initial :: states;
+    indexes = List.mapi (fun idx state -> (state, idx)) (initial :: states) |> List.to_seq |> StringMap.of_seq;
     transitions = Array.make_matrix (List.length @@ initial :: states) 128 None
   }
 
@@ -198,20 +201,30 @@ module Machine : MACHINE = struct
     machine with
     transitions =
       let transitions' = Array.map (fun row -> Array.copy row) machine.transitions in
-      let sidx = StringMap.find state machine.states in
+      let sidx = StringMap.find state machine.indexes in
+      let sidx' = StringMap.find state' machine.indexes in
       let hidx = Char.code head in
-      transitions'.(sidx).(hidx) <- Some (state', head', direction);
+      transitions'.(sidx).(hidx) <- Some (sidx', head', direction);
       transitions'
   }
 
   let step machine state tape =
-    let sidx = StringMap.find state machine.states in
+    let sidx = StringMap.find state machine.indexes in
     let hidx = Char.code @@ Tape.read tape in
     match machine.transitions.(sidx).(hidx) with
       | None -> None
-      | Some (state', head', direction) ->
+      | Some (sidx', head', direction) ->
+        let state' = machine.states.(sidx') in
         let tape' = tape |> Tape.write head' |> Tape.move direction in
         Some (state', tape')
+
+  let step' machine sidx tape =
+    let hidx = Char.code @@ Tape.read tape in
+    match machine.transitions.(sidx).(hidx) with
+      | None -> None
+      | Some (sidx', head', direction) ->
+        let tape' = tape |> Tape.write head' |> Tape.move direction in
+        Some (sidx', tape')
 
 end
 
@@ -292,12 +305,12 @@ done
 (* val primer_slow_run : unit = () *)
 
 let speed_run machine tape =
-  let rec run state tape =
-    match Machine.step machine state tape with
+  let rec run sidx tape =
+    match Machine.step' machine sidx tape with
       | None -> tape
-      | Some (state', tape') -> run state' tape'
+      | Some (sidx', tape') -> run sidx' tape'
   in
-  let final = run (Machine.initial machine) (Tape.make tape) in
+  let final = run 0 (Tape.make tape) in
   Tape.print final
 
 let primer_speed_run =
